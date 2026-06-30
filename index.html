@@ -24,14 +24,14 @@
         #game-screen { position: relative; width: 100%; height: 100%; }
         
         /* Mapillary Container */
-        #mly { width: 100%; height: 100%; }
+        #mly { width: 100%; height: 100%; background-color: #1e1f22; }
         
         /* UI Branding Overlay */
         #ui-overlay { position: absolute; top: 10px; left: 10px; padding: 10px 20px; background: rgba(30, 31, 34, 0.9); border-radius: 8px; z-index: 99; box-shadow: 0 4px 6px rgba(0,0,0,0.5); pointer-events: none; }
         #ui-overlay h2 { margin: 0; font-size: 18px; }
         
         /* Interactive Map */
-        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 220px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.6); transition: width 0.3s, height 0.3s; }
+        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 220px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.6); transition: width 0.3s, height 0.3s; background: #e0e0e0; }
         #map-container:hover { width: 500px; height: 350px; }
         #map { width: 100%; height: 100%; }
         #guess-btn { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 101; background: #23a559; width: 80%; }
@@ -83,10 +83,8 @@
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
         // --- 1. SET UP DAILY LOCATIONS ---
-        // Mapillary uses specific Image IDs (pKey) from their website.
-        // We also store the real Lat/Lng so we can calculate the distance when they guess!
         const dailyLocations = [
-            { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }, // Dummy coords for example
+            { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }, 
             { imageId: '3164478140498425', lat: 48.8566, lng: 2.3522, name: "Paris, France" },
             { imageId: '1016542289456950', lat: 51.5072, lng: -0.1276, name: "London, UK" }
         ];
@@ -99,12 +97,18 @@
         let discordUser = "Explorer";
 
         // --- 2. INITIALIZE DISCORD SDK ---
+        // ⚠️ PASTE YOUR CLIENT ID BELOW ⚠️
         const discordSdk = new DiscordSDK("1521354566791200829");
         
         async function setupDiscord() {
             try {
                 await discordSdk.ready();
                 
+                // Allow the Play button to appear even if Discord Auth takes a second
+                document.getElementById('start-btn').classList.remove('hidden');
+                document.getElementById('welcome-text').innerText = `Welcome to DiscordGeo!`;
+                
+                // Try to get their username (runs in background)
                 const { code } = await discordSdk.commands.authorize({
                     client_id: discordSdk.clientId,
                     response_type: "code",
@@ -122,34 +126,40 @@
                 
                 const auth = await discordSdk.commands.authenticate({ access_token });
                 discordUser = auth.user.username;
-                
                 document.getElementById('welcome-text').innerText = `Welcome, ${discordUser}!`;
-                document.getElementById('start-btn').classList.remove('hidden');
+                
             } catch (e) {
-                console.error("Discord SDK Error:", e);
-                document.getElementById('welcome-text').innerText = `Welcome, Explorer!`;
+                console.log("Discord Auth fallback engaged.");
                 document.getElementById('start-btn').classList.remove('hidden');
+                document.getElementById('welcome-text').innerText = `Welcome, Explorer!`;
             }
         }
         setupDiscord();
 
-        // --- 3. START GAME & LOAD MAPILLARY ---
+        // --- 3. START GAME & LOAD MAPS ---
         document.getElementById('start-btn').addEventListener('click', () => {
+            // Unhide the screen FIRST so the maps know how big to be!
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
 
-            // PASTE YOUR MAPILLARY CLIENT TOKEN HERE
+            // ⚠️ PASTE YOUR MAPILLARY TOKEN BELOW ⚠️
             const mapillaryToken = 'MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f';
 
-            // Load the Mapillary 3D Viewer
-            const { Viewer } = mapillary;
-            const viewer = new Viewer({
-                accessToken: mapillaryToken,
-                container: 'mly',
-                imageId: todayTarget.imageId,
-                component: { cover: false } // Removes the Mapillary loading cover
-            });
+            // Wait a split second for the CSS to update, then spawn Mapillary
+            setTimeout(() => {
+                const { Viewer } = mapillary;
+                const viewer = new Viewer({
+                    accessToken: mapillaryToken,
+                    container: 'mly',
+                    imageId: todayTarget.imageId,
+                    component: { cover: false } 
+                });
+                
+                // Keep streetview sized correctly if they resize Discord
+                window.addEventListener("resize", () => viewer.resize());
+            }, 100);
 
+            // Spawn Leaflet Map
             initMap();
         });
 
@@ -157,7 +167,16 @@
         let map, guessMarker;
         function initMap() {
             map = L.map('map').setView([20, 0], 1);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            // Using reliable OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OSM'
+            }).addTo(map);
+
+            // Force Leaflet to recalculate its size after it unhides!
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 200);
 
             map.on('click', function(e) {
                 playerGuessLat = e.latlng.lat;
@@ -167,7 +186,7 @@
             });
         }
 
-        // Distance Math (Haversine)
+        // Distance Math
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -182,7 +201,6 @@
             
             const distance = calculateDistance(playerGuessLat, playerGuessLon, todayTarget.lat, todayTarget.lng);
             
-            // Score Logic (Max 5000 points)
             let points = Math.round(5000 * Math.exp(-distance / 2000));
             if (distance < 50) points = 5000; 
 
@@ -193,7 +211,6 @@
             document.getElementById('location-name').innerText = todayTarget.name;
             document.getElementById('score-text').innerText = points.toLocaleString() + " PTS";
 
-            // Share String logic
             const emojis = (points > 4500) ? "🟩🟩🟩🟩🟩" : (points > 3000) ? "🟩🟩🟩🟨⬜" : "🟨🟨⬜⬜⬜";
             const shareString = `🌍 DiscordGeo Daily\n${emojis}\n📍 ${distance.toLocaleString()} km away\n🏆 ${points.toLocaleString()} Points`;
             document.getElementById('share-text').innerText = shareString;
