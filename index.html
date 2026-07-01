@@ -3,84 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiscordGeo</title>
+    <title>DiscordGeo V3</title>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Notice we are now using the safe /unpkg prefix we just created! -->
+    <link rel="stylesheet" href="/unpkg/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #313338; color: white; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; background-color: #313338;}
         
-        #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; background: #313338; }
-        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        button:hover { background: #4752C4; }
+        /* 🔵 MASSIVE VISUAL CHANGE TO PROVE V3 LOADED 🔵 */
+        #menu-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; background: linear-gradient(135deg, #00C6FF 0%, #0072FF 100%); }
         
-        #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
+        #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; background: #313338; }
         
-        /* Using an iframe directly bypasses Discord's script blocking! */
+        button { background: #23a559; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 15px; text-transform: uppercase; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        button:hover { background: #1d8a4a; }
+        
+        #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: #000; }
+        
         #mly-iframe { width: 100%; height: 100%; border: none; background-color: #1e1f22; }
         
-        #ui-overlay { position: absolute; top: 10px; left: 10px; padding: 10px 20px; background: rgba(30, 31, 34, 0.9); border-radius: 8px; z-index: 99; pointer-events: none; }
-        #ui-overlay h2 { margin: 0; font-size: 18px; }
+        #ui-overlay { position: absolute; top: 15px; left: 15px; padding: 10px 20px; background: rgba(0, 0, 0, 0.8); border-radius: 8px; z-index: 99; border: 2px solid #00C6FF; }
+        #ui-overlay h2 { margin: 0; font-size: 20px; color: #00C6FF; }
         
-        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 260px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; transition: 0.3s; }
-        #map-container:hover { width: 500px; height: 350px; }
-        #map { width: 100%; flex-grow: 1; }
-        #guess-btn-box { padding: 10px; text-align: center; }
-        #guess-btn { width: 100%; background: #23a559; margin: 0; padding: 10px 0; border-radius: 6px; }
-        #guess-btn:hover { background: #1d8a4a; }
+        #map-container { position: absolute; bottom: 20px; right: 20px; width: 350px; height: 280px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 25px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; border: 3px solid #1e1f22; }
+        #map-container:hover { width: 550px; height: 380px; }
+        #map { width: 100%; flex-grow: 1; background: #e0e0e0; }
+        #guess-btn-box { padding: 12px; text-align: center; background: #1e1f22; }
+        #guess-btn { width: 100%; margin: 0; padding: 12px 0; font-size: 16px; box-shadow: none; }
     </style>
 </head>
 <body>
 
     <div id="menu-screen">
-        <h1 id="welcome-text">DiscordGeo Daily</h1>
-        <p>A new location is chosen every single day.</p>
-        <button id="start-btn">Play Daily Challenge</button>
+        <h1 id="welcome-text">🌍 DiscordGeo V3</h1>
+        <p>If you see NEON BLUE, the Discord Firewall has been bypassed!</p>
+        <button id="start-btn">🚀 Launch Game V3</button>
     </div>
 
     <div id="game-screen">
         <div id="ui-overlay"><h2>🌍 DiscordGeo Daily</h2></div>
         
-        <!-- The secure embed frame -->
-        <iframe id="mly-iframe" allowfullscreen></iframe>
+        <!-- Using the safe /mapillary proxy! -->
+        <iframe id="mly-iframe" sandbox="allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>
         
         <div id="map-container">
             <div id="map"></div>
             <div id="guess-btn-box">
-                <button id="guess-btn">LOCK IN GUESS</button>
+                <button id="guess-btn">📍 LOCK IN GUESS</button>
             </div>
         </div>
     </div>
 
     <div id="result-screen" style="display: none;">
-        <h2>Target Locked!</h2>
+        <h2>🎯 Target Locked!</h2>
         <p>You were <span id="dist-text">0</span> km away from <b id="location-name">The Target</b>.</p>
-        <h1 id="score-text" style="color:#FEE75C; font-size: 48px; margin: 10px 0;">0 PTS</h1>
-        <div id="share-text" style="background:#1e1f22; padding:15px; border-radius:8px; font-family:monospace; white-space:pre-wrap; margin-bottom:20px;"></div>
+        <h1 id="score-text" style="color:#FEE75C; font-size: 55px; margin: 10px 0;">0 PTS</h1>
+        <div id="share-text" style="background:#1e1f22; padding:15px; border-radius:8px; font-family:monospace; white-space:pre-wrap; margin-bottom:20px; color: #fff;"></div>
         <button id="copy-btn">📋 Copy Result to Chat</button>
     </div>
 
-    <!-- Map Script -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Notice we are now using the safe /unpkg prefix! -->
+    <script src="/unpkg/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script type="module">
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
         // ==========================================
-        // ⚠️ PASTE ONLY YOUR DISCORD CLIENT ID HERE ⚠️
+        // ⚠️ PASTE YOUR DISCORD CLIENT ID HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
         // ==========================================
 
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
         
-        // Let Discord know we are ready to remove the loading shield
         discordSdk.ready().then(() => {
             console.log("Discord Shield Dropped!");
         }).catch(() => {
-            console.log("Running in browser test mode.");
+            console.log("Running outside of Discord.");
         });
 
-        // Daily Locations Array
         const dailyLocations = [
             { imageId: '3164478140498425', lat: 48.8566, lng: 2.3522, name: "Paris, France" },
             { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }
@@ -92,21 +93,19 @@
         let playerGuessLon = null;
         let map, marker;
 
-        // START GAME
         document.getElementById('start-btn').addEventListener('click', () => {
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'block';
 
-            // 1. Load Mapillary via safe iframe!
+            // 1. Load Mapillary via safe proxy!
             const iframe = document.getElementById('mly-iframe');
-            iframe.src = `https://www.mapillary.com/embed?image_key=${todayTarget.imageId}&style=photo`;
+            iframe.src = `/mapillary/embed?image_key=${todayTarget.imageId}&style=photo`;
 
             // 2. Load Leaflet Map
             try {
                 map = L.map('map').setView([20, 0], 1);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                L.tileLayer('/osm/{z}/{x}/{y}.png').addTo(map);
                 
-                // Force map to render correctly
                 setTimeout(() => { map.invalidateSize(); }, 300);
                 window.addEventListener("resize", () => { if(map) map.invalidateSize(); });
 
@@ -121,7 +120,6 @@
             }
         });
 
-        // GUESS LOGIC
         document.getElementById('guess-btn').addEventListener('click', () => {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
