@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiscordGeo 360 Edition</title>
+    <title>DiscordGeo Modes</title>
     
-    <!-- Safely loading Maps and 360 Engine through Discord Proxies -->
     <link rel="stylesheet" href="/unpkg/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/cdn/npm/pannellum@2.5.6/build/pannellum.css" />
     
@@ -14,48 +13,56 @@
         .earth-gradient { background: linear-gradient(135deg, #1d8a4a 0%, #0072FF 100%); }
         
         #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 300; transition: opacity 0.5s; text-align: center; padding: 20px; box-sizing: border-box; }
-        #welcome-text { font-size: 45px; margin-bottom: 5px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); font-weight: 800; letter-spacing: 1px; }
+        #welcome-text { font-size: 50px; margin-bottom: 5px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); font-weight: 900; letter-spacing: 1px; }
         
-        button { background: #2b2d31; color: white; border: 2px solid rgba(255,255,255,0.2); padding: 15px 40px; font-size: 20px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-top: 20px; text-transform: uppercase; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; z-index: 999; }
-        button:hover { background: #1e1f22; border-color: white; transform: scale(1.05); }
+        .mode-container { display: flex; gap: 20px; margin-top: 30px; }
+        .mode-btn { background: #2b2d31; color: white; border: 2px solid rgba(255,255,255,0.2); padding: 15px 30px; font-size: 18px; border-radius: 12px; cursor: pointer; font-weight: bold; text-transform: uppercase; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; display: flex; flex-direction: column; align-items: center; }
+        .mode-btn:hover { background: #1e1f22; border-color: white; transform: translateY(-5px); }
+        .mode-btn span { font-size: 12px; color: #aaa; margin-top: 5px; font-weight: normal; text-transform: none; }
         
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        
-        /* The Native 360 Viewer */
         #panorama { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 10; background: #111; }
         
         #ui-overlay { position: absolute; top: 15px; left: 15px; padding: 10px 20px; background: rgba(30, 31, 34, 0.85); border-radius: 8px; z-index: 99; backdrop-filter: blur(5px); border-bottom: 3px solid #1d8a4a; }
         #ui-overlay h2 { margin: 0; font-size: 18px; color: #fff; }
         
-        /* The Guessing Map */
         #map-container { position: absolute; bottom: 20px; right: 20px; width: 350px; height: 280px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; border: 3px solid #1e1f22; transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
         #map-container:hover { width: 450px; height: 350px; }
         .fullscreen-map { width: 100% !important; height: 100% !important; bottom: 0 !important; right: 0 !important; border-radius: 0 !important; border: none !important; z-index: 150 !important; }
         
         #map { width: 100%; flex-grow: 1; background: #9bbcf2; } 
         #guess-btn-box { padding: 12px; text-align: center; background: #1e1f22; }
-        #guess-btn { width: 100%; margin: 0; padding: 12px 0; font-size: 16px; border-radius: 8px; box-shadow: none; background: #1d8a4a; border: none; }
-        #guess-btn:hover { background: #156636; transform: none; }
+        #guess-btn { width: 100%; margin: 0; padding: 12px 0; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; background: #1d8a4a; border: none; color: white; transition: 0.2s;}
+        #guess-btn:hover { background: #156636; }
         
         .result-title { font-size: 35px; margin: 0 0 10px 0; font-weight: 300; }
         .result-location { font-size: 45px; margin: 0 0 30px 0; font-weight: 800; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .result-stats { font-size: 28px; margin: 5px 0; font-weight: 600; }
+        
+        .end-btn { background: #1d8a4a; color: white; border: none; padding: 15px 40px; font-size: 20px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-top: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; }
+        .end-btn:hover { background: #156636; transform: scale(1.05); }
     </style>
 </head>
 <body>
 
     <div id="menu-screen" class="earth-gradient">
         <h1 id="welcome-text">DiscordGeo</h1>
-        <p style="font-size: 18px;">A new location is chosen every single day.</p>
-        <button id="start-btn">DROP IN</button>
+        
+        <div class="mode-container">
+            <button class="mode-btn" id="btn-daily">
+                🌍 Daily Challenge
+                <span>Same location for everyone today.</span>
+            </button>
+            <button class="mode-btn" id="btn-casual">
+                🎲 Casual Play
+                <span>Endless random locations.</span>
+            </button>
+        </div>
     </div>
 
     <div id="game-screen">
-        <div id="ui-overlay"><h2>Daily Challenge</h2></div>
-        
-        <!-- Native 360 Viewer Canvas -->
+        <div id="ui-overlay"><h2 id="mode-title">DiscordGeo</h2></div>
         <div id="panorama"></div>
-        
         <div id="map-container">
             <div id="map"></div>
             <div id="guess-btn-box"><button id="guess-btn">LOCK IN GUESS</button></div>
@@ -67,85 +74,120 @@
         <h1 class="result-location" id="res-location">City, Country</h1>
         <p class="result-stats">Distance: <span id="res-dist">0</span> km</p>
         <p class="result-stats" style="color: #c9ffdb;">Points: <span id="res-score">0</span></p>
-        <button id="copy-btn">Copy to Chat</button>
+        
+        <!-- These swap depending on the mode -->
+        <button id="copy-btn" class="end-btn" style="display: none;">📋 Copy to Chat</button>
+        <button id="next-btn" class="end-btn" style="display: none;">🎲 Play Again</button>
     </div>
 
-    <!-- Load Leaflet and Pannellum scripts securely -->
     <script src="/unpkg/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/cdn/npm/pannellum@2.5.6/build/pannellum.js"></script>
     
     <script type="module">
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
-        // ==========================================
         // ⚠️ PASTE YOUR DISCORD CLIENT ID HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
-        // ==========================================
-
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
         discordSdk.ready().catch(() => console.log("Running outside Discord"));
 
-        // 🟢 HARDCODED 360° PANORAMAS 🟢
-        // Because these images come from /pano, Discord completely allows them!
-        const dailyLocations = [
+        // 🟢 MASSIVE GLOBAL LOCATION DATABASE 🟢
+        // Notice the /wiki proxy path!
+        const locations = [
+            { name: "Trafalgar Square, London", lat: 51.508, lng: -0.128, imgUrl: "/wiki/wikipedia/commons/f/fa/Trafalgar_Square_360_Panorama.jpg" },
+            { name: "Colosseum Interior, Rome", lat: 41.890, lng: 12.492, imgUrl: "/wiki/wikipedia/commons/9/9d/360_degree_view_of_the_inside_of_the_Colosseum.jpg" },
+            { name: "Times Square, New York", lat: 40.758, lng: -73.985, imgUrl: "/wiki/wikipedia/commons/0/07/Times_Square_360_Panorama.jpg" },
+            { name: "Cathedral of the Assumption, Malta", lat: 36.045, lng: 14.239, imgUrl: "/wiki/wikipedia/commons/8/87/Interior_of_the_Cathedral_of_the_Assumption%2C_Gozo_-_360%C2%B0_Photosphere.jpg" },
             { name: "ALMA Observatory, Chile", lat: -23.0234, lng: -67.7538, imgUrl: "/pano/images/alma.jpg" },
-            { name: "Baltimore Museum of Art, USA", lat: 39.3259, lng: -76.6195, imgUrl: "/pano/images/bma-0.jpg" },
-            { name: "Cerro Toco, Chile", lat: -22.9500, lng: -67.7700, imgUrl: "/pano/images/cerro-toco.jpg" }
+            { name: "Baltimore Museum, USA", lat: 39.3259, lng: -76.6195, imgUrl: "/pano/images/bma-0.jpg" }
         ];
         
-        // Pick location based on the day
-        const dayIndex = Math.floor(Date.now() / 86400000);
-        const todayTarget = dailyLocations[dayIndex % dailyLocations.length];
-        
+        let currentMode = ""; 
+        let currentTarget = null;
         let playerGuessLat = null;
         let playerGuessLon = null;
-        let map, playerMarker, targetMarker, flightPath;
+        let map, playerMarker, targetMarker, flightPath, viewer;
 
-        // 🟢 START GAME 🟢
-        document.getElementById('start-btn').addEventListener('click', () => {
+        function initRound(mode) {
+            currentMode = mode;
+            playerGuessLat = null;
+            playerGuessLon = null;
+            
+            // Choose Location Logic
+            if (mode === "daily") {
+                document.getElementById('mode-title').innerText = "Daily Challenge";
+                const dayIndex = Math.floor(Date.now() / 86400000);
+                currentTarget = locations[dayIndex % locations.length];
+            } else {
+                document.getElementById('mode-title').innerText = "Casual Play";
+                const randIndex = Math.floor(Math.random() * locations.length);
+                currentTarget = locations[randIndex];
+            }
+
+            // Screen Transitions
             document.getElementById('menu-screen').style.opacity = '0';
+            document.getElementById('result-screen').style.opacity = '0';
+            
             setTimeout(() => {
                 document.getElementById('menu-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'none';
                 document.getElementById('game-screen').style.display = 'block';
                 
-                // 1. Initialize Pannellum 360 Viewer!
-                pannellum.viewer('panorama', {
+                // Reset UI
+                document.getElementById('guess-btn-box').style.display = 'block';
+                document.getElementById('panorama').style.opacity = '1';
+                document.getElementById('map-container').classList.remove('fullscreen-map');
+                
+                // Load 360 Viewer
+                if(viewer) viewer.destroy(); // Clear old panorama
+                viewer = pannellum.viewer('panorama', {
                     "type": "equirectangular",
-                    "panorama": todayTarget.imgUrl,
+                    "panorama": currentTarget.imgUrl,
                     "autoLoad": true,
                     "showZoomCtrl": false,
                     "mouseZoom": false
                 });
 
-                // 2. Initialize Leaflet Map
-                map = L.map('map', { zoomControl: false }).setView([20, 0], 1);
-                L.control.zoom({ position: 'topleft' }).addTo(map);
-                L.tileLayer('/osm/{z}/{x}/{y}.png').addTo(map);
+                // Load Leaflet Map (Only initialize once)
+                if(!map) {
+                    map = L.map('map', { zoomControl: false }).setView([20, 0], 1);
+                    L.control.zoom({ position: 'topleft' }).addTo(map);
+                    L.tileLayer('/osm/{z}/{x}/{y}.png').addTo(map);
+                    
+                    map.on('click', (e) => {
+                        playerGuessLat = e.latlng.lat;
+                        playerGuessLon = e.latlng.lng;
+                        if(playerMarker) playerMarker.setLatLng(e.latlng);
+                        else playerMarker = L.marker(e.latlng, {
+                            icon: L.icon({iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41]})
+                        }).addTo(map);
+                    });
+                } else {
+                    // Reset map for casual play
+                    map.setView([20, 0], 1);
+                    if(playerMarker) map.removeLayer(playerMarker);
+                    if(targetMarker) map.removeLayer(targetMarker);
+                    if(flightPath) map.removeLayer(flightPath);
+                    playerMarker = null;
+                }
                 
                 setTimeout(() => { map.invalidateSize(); }, 300);
-
-                const playerIcon = L.icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                    iconSize: [25, 41], iconAnchor: [12, 41]
-                });
-
-                map.on('click', (e) => {
-                    playerGuessLat = e.latlng.lat;
-                    playerGuessLon = e.latlng.lng;
-                    if(playerMarker) playerMarker.setLatLng(e.latlng);
-                    else playerMarker = L.marker(e.latlng, {icon: playerIcon}).addTo(map);
-                });
             }, 500);
-        });
+        }
 
-        // 🟢 LOCK IN GUESS & CINEMATIC ENDING 🟢
+        // Button Listeners
+        document.getElementById('btn-daily').addEventListener('click', () => initRound('daily'));
+        document.getElementById('btn-casual').addEventListener('click', () => initRound('casual'));
+        document.getElementById('next-btn').addEventListener('click', () => initRound('casual'));
+
+        // LOCK IN GUESS
         document.getElementById('guess-btn').addEventListener('click', () => {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
             const R = 6371; 
-            const dLat = (todayTarget.lat - playerGuessLat) * Math.PI / 180;
-            const dLon = (todayTarget.lng - playerGuessLon) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(playerGuessLat * Math.PI / 180) * Math.cos(todayTarget.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const dLat = (currentTarget.lat - playerGuessLat) * Math.PI / 180;
+            const dLon = (currentTarget.lng - playerGuessLon) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(playerGuessLat * Math.PI / 180) * Math.cos(currentTarget.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
             const distance = Math.round(R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))));
             
             let points = Math.round(5000 * Math.exp(-distance / 2000));
@@ -153,21 +195,17 @@
 
             document.getElementById('guess-btn-box').style.display = 'none'; 
             document.getElementById('panorama').style.opacity = '0'; 
-            
-            const mapCont = document.getElementById('map-container');
-            mapCont.classList.add('fullscreen-map');
+            document.getElementById('map-container').classList.add('fullscreen-map');
             
             setTimeout(() => {
                 map.invalidateSize();
                 
-                const targetIcon = L.icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                    iconSize: [25, 41], iconAnchor: [12, 41]
-                });
-                targetMarker = L.marker([todayTarget.lat, todayTarget.lng], {icon: targetIcon}).addTo(map);
+                targetMarker = L.marker([currentTarget.lat, currentTarget.lng], {
+                    icon: L.icon({iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41]})
+                }).addTo(map);
 
                 flightPath = L.polyline(
-                    [[playerGuessLat, playerGuessLon], [todayTarget.lat, todayTarget.lng]], 
+                    [[playerGuessLat, playerGuessLon], [currentTarget.lat, currentTarget.lng]], 
                     {color: '#ff3333', dashArray: '10, 10', weight: 4, opacity: 0.8}
                 ).addTo(map);
 
@@ -178,14 +216,17 @@
                     document.getElementById('game-screen').style.display = 'none'; 
                     resultUI.style.display = 'flex';
                     
+                    // Show correct buttons based on mode!
+                    document.getElementById('copy-btn').style.display = (currentMode === 'daily') ? 'block' : 'none';
+                    document.getElementById('next-btn').style.display = (currentMode === 'casual') ? 'block' : 'none';
+                    
                     setTimeout(() => { resultUI.style.opacity = '1'; }, 50);
                     
-                    document.getElementById('res-location').innerText = todayTarget.name;
+                    document.getElementById('res-location').innerText = currentTarget.name;
                     document.getElementById('res-dist').innerText = distance.toLocaleString();
                     document.getElementById('res-score').innerText = points.toLocaleString();
 
-                    const shareStr = `DiscordGeo Daily\nTarget: ${todayTarget.name}\nDistance: ${distance.toLocaleString()} km\nPoints: ${points.toLocaleString()}`;
-                    
+                    const shareStr = `DiscordGeo Daily\nTarget: ${currentTarget.name}\nDistance: ${distance.toLocaleString()} km\nPoints: ${points.toLocaleString()}`;
                     document.getElementById('copy-btn').onclick = () => { 
                         navigator.clipboard.writeText(shareStr); 
                         document.getElementById('copy-btn').innerText = "Copied!"; 
