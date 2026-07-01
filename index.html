@@ -6,23 +6,23 @@
     <title>DiscordGeo</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.css" rel="stylesheet" />
     
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #313338; color: white; }
         
         #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; background: #313338; }
-        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; z-index: 999;}
+        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         button:hover { background: #4752C4; }
         
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        #mly { width: 100%; height: 100%; background-color: #1e1f22; }
+        
+        /* Using an iframe directly bypasses Discord's script blocking! */
+        #mly-iframe { width: 100%; height: 100%; border: none; background-color: #1e1f22; }
         
         #ui-overlay { position: absolute; top: 10px; left: 10px; padding: 10px 20px; background: rgba(30, 31, 34, 0.9); border-radius: 8px; z-index: 99; pointer-events: none; }
         #ui-overlay h2 { margin: 0; font-size: 18px; }
         
-        /* FIXED: Clean layout so the map NEVER overlaps the button */
-        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 260px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.8); transition: 0.3s; display: flex; flex-direction: column; background: #2b2d31; }
+        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 260px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; transition: 0.3s; }
         #map-container:hover { width: 500px; height: 350px; }
         #map { width: 100%; flex-grow: 1; }
         #guess-btn-box { padding: 10px; text-align: center; }
@@ -40,7 +40,10 @@
 
     <div id="game-screen">
         <div id="ui-overlay"><h2>🌍 DiscordGeo Daily</h2></div>
-        <div id="mly"></div>
+        
+        <!-- The secure embed frame -->
+        <iframe id="mly-iframe" allowfullscreen></iframe>
+        
         <div id="map-container">
             <div id="map"></div>
             <div id="guess-btn-box">
@@ -57,33 +60,27 @@
         <button id="copy-btn">📋 Copy Result to Chat</button>
     </div>
 
-    <!-- Scripts -->
+    <!-- Map Script -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.js"></script>
     
     <script type="module">
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
         // ==========================================
-        // ⚠️ 1. PASTE YOUR KEYS HERE ⚠️
+        // ⚠️ PASTE ONLY YOUR DISCORD CLIENT ID HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
-        const MAPILLARY_TOKEN = "MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f";
         // ==========================================
 
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
         
-        // THIS DROPS THE INVISIBLE DISCORD SHIELD
-        async function initDiscord() {
-            try {
-                await discordSdk.ready(); 
-                console.log("Discord Shield Dropped!");
-            } catch(e) {
-                console.log("Running in browser test mode.");
-            }
-        }
-        initDiscord();
+        // Let Discord know we are ready to remove the loading shield
+        discordSdk.ready().then(() => {
+            console.log("Discord Shield Dropped!");
+        }).catch(() => {
+            console.log("Running in browser test mode.");
+        });
 
-        // 2. DAILY LOCATIONS
+        // Daily Locations Array
         const dailyLocations = [
             { imageId: '3164478140498425', lat: 48.8566, lng: 2.3522, name: "Paris, France" },
             { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }
@@ -95,28 +92,23 @@
         let playerGuessLon = null;
         let map, marker;
 
-        // 3. START GAME LOGIC
+        // START GAME
         document.getElementById('start-btn').addEventListener('click', () => {
-            // Unhide the screen
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'block';
 
-            // Wait 100ms so the browser can physically draw the box before Mapillary measures it
-            setTimeout(() => {
-                // Spawn Mapillary
-                const viewer = new mapillary.Viewer({
-                    accessToken: MAPILLARY_TOKEN,
-                    container: 'mly',
-                    imageId: todayTarget.imageId,
-                });
-                window.addEventListener("resize", () => viewer.resize());
+            // 1. Load Mapillary via safe iframe!
+            const iframe = document.getElementById('mly-iframe');
+            iframe.src = `https://www.mapillary.com/embed?image_key=${todayTarget.imageId}&style=photo`;
 
-                // Spawn Leaflet Map
+            // 2. Load Leaflet Map
+            try {
                 map = L.map('map').setView([20, 0], 1);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                 
-                // Force Leaflet to update its size
-                setTimeout(() => { map.invalidateSize(); }, 200);
+                // Force map to render correctly
+                setTimeout(() => { map.invalidateSize(); }, 300);
+                window.addEventListener("resize", () => { if(map) map.invalidateSize(); });
 
                 map.on('click', (e) => {
                     playerGuessLat = e.latlng.lat;
@@ -124,10 +116,12 @@
                     if(marker) marker.setLatLng(e.latlng);
                     else marker = L.marker(e.latlng).addTo(map);
                 });
-            }, 100);
+            } catch (error) {
+                console.error("Map failed to load:", error);
+            }
         });
 
-        // 4. GUESS LOGIC
+        // GUESS LOGIC
         document.getElementById('guess-btn').addEventListener('click', () => {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
