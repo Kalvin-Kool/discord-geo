@@ -12,20 +12,22 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #313338; color: white; }
         
         #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; background: #313338; }
-        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px;}
+        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; z-index: 999;}
         button:hover { background: #4752C4; }
         
-        #game-screen { position: relative; width: 100%; height: 100%; display: none; }
-        
+        #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
         #mly { width: 100%; height: 100%; background-color: #1e1f22; }
         
         #ui-overlay { position: absolute; top: 10px; left: 10px; padding: 10px 20px; background: rgba(30, 31, 34, 0.9); border-radius: 8px; z-index: 99; pointer-events: none; }
         #ui-overlay h2 { margin: 0; font-size: 18px; }
         
-        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 220px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.6); transition: 0.3s; background: #e0e0e0; }
+        /* FIXED: Clean layout so the map NEVER overlaps the button */
+        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 260px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.8); transition: 0.3s; display: flex; flex-direction: column; background: #2b2d31; }
         #map-container:hover { width: 500px; height: 350px; }
-        #map { width: 100%; height: 100%; }
-        #guess-btn { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 101; background: #23a559; width: 80%; }
+        #map { width: 100%; flex-grow: 1; }
+        #guess-btn-box { padding: 10px; text-align: center; }
+        #guess-btn { width: 100%; background: #23a559; margin: 0; padding: 10px 0; border-radius: 6px; }
+        #guess-btn:hover { background: #1d8a4a; }
     </style>
 </head>
 <body>
@@ -33,7 +35,7 @@
     <div id="menu-screen">
         <h1 id="welcome-text">DiscordGeo Daily</h1>
         <p>A new location is chosen every single day.</p>
-        <button id="start-btn" onclick="startGame()">Play Daily Challenge</button>
+        <button id="start-btn">Play Daily Challenge</button>
     </div>
 
     <div id="game-screen">
@@ -41,7 +43,9 @@
         <div id="mly"></div>
         <div id="map-container">
             <div id="map"></div>
-            <button id="guess-btn" onclick="lockGuess()">LOCK IN GUESS</button>
+            <div id="guess-btn-box">
+                <button id="guess-btn">LOCK IN GUESS</button>
+            </div>
         </div>
     </div>
 
@@ -53,56 +57,78 @@
         <button id="copy-btn">📋 Copy Result to Chat</button>
     </div>
 
-    <!-- Map Scripts -->
+    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.js"></script>
     
-    <!-- GAME LOGIC (Isolated from Discord) -->
-    <script>
+    <script type="module">
+        import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
+        
+        // ==========================================
+        // ⚠️ 1. PASTE YOUR KEYS HERE ⚠️
+        const DISCORD_CLIENT_ID = "1521354566791200829";
+        const MAPILLARY_TOKEN = "MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f";
+        // ==========================================
+
+        const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
+        
+        // THIS DROPS THE INVISIBLE DISCORD SHIELD
+        async function initDiscord() {
+            try {
+                await discordSdk.ready(); 
+                console.log("Discord Shield Dropped!");
+            } catch(e) {
+                console.log("Running in browser test mode.");
+            }
+        }
+        initDiscord();
+
+        // 2. DAILY LOCATIONS
         const dailyLocations = [
             { imageId: '3164478140498425', lat: 48.8566, lng: 2.3522, name: "Paris, France" },
             { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }
         ];
-        
         const dayIndex = Math.floor(Date.now() / 86400000);
         const todayTarget = dailyLocations[dayIndex % dailyLocations.length];
         
         let playerGuessLat = null;
         let playerGuessLon = null;
+        let map, marker;
 
-        function startGame() {
+        // 3. START GAME LOGIC
+        document.getElementById('start-btn').addEventListener('click', () => {
+            // Unhide the screen
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'block';
 
-            // ⚠️ PASTE MAPILLARY TOKEN HERE ⚠️
-            const mapillaryToken = 'MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f';
+            // Wait 100ms so the browser can physically draw the box before Mapillary measures it
+            setTimeout(() => {
+                // Spawn Mapillary
+                const viewer = new mapillary.Viewer({
+                    accessToken: MAPILLARY_TOKEN,
+                    container: 'mly',
+                    imageId: todayTarget.imageId,
+                });
+                window.addEventListener("resize", () => viewer.resize());
 
-            // Load Street View
-            const viewer = new mapillary.Viewer({
-                accessToken: mapillaryToken,
-                container: 'mly',
-                imageId: todayTarget.imageId,
-                component: { cover: false }
-            });
-            window.addEventListener("resize", () => viewer.resize());
+                // Spawn Leaflet Map
+                map = L.map('map').setView([20, 0], 1);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                
+                // Force Leaflet to update its size
+                setTimeout(() => { map.invalidateSize(); }, 200);
 
-            // Load Leaflet Map
-            const map = L.map('map').setView([20, 0], 1);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            
-            // Fix Leaflet Gray Bug
-            setTimeout(() => { map.invalidateSize(); }, 500);
+                map.on('click', (e) => {
+                    playerGuessLat = e.latlng.lat;
+                    playerGuessLon = e.latlng.lng;
+                    if(marker) marker.setLatLng(e.latlng);
+                    else marker = L.marker(e.latlng).addTo(map);
+                });
+            }, 100);
+        });
 
-            let marker;
-            map.on('click', (e) => {
-                playerGuessLat = e.latlng.lat;
-                playerGuessLon = e.latlng.lng;
-                if(marker) marker.setLatLng(e.latlng);
-                else marker = L.marker(e.latlng).addTo(map);
-            });
-        }
-
-        function lockGuess() {
+        // 4. GUESS LOGIC
+        document.getElementById('guess-btn').addEventListener('click', () => {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
             const R = 6371; 
@@ -125,27 +151,11 @@
             const shareStr = `🌍 DiscordGeo Daily\n${emojis}\n📍 ${distance.toLocaleString()} km away\n🏆 ${points.toLocaleString()} Points`;
             document.getElementById('share-text').innerText = shareStr;
             
-            document.getElementById('copy-btn').onclick = () => { navigator.clipboard.writeText(shareStr); document.getElementById('copy-btn').innerText = "✅ Copied!"; };
-        }
-    </script>
-
-    <!-- DISCORD LOGIC (Running safely in background) -->
-    <script type="module">
-        import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
-        // ⚠️ PASTE DISCORD CLIENT ID BELOW ⚠️
-        const discordSdk = new DiscordSDK("1521354566791200829");
-        
-        async function setupDiscord() {
-            try {
-                await discordSdk.ready();
-                const { code } = await discordSdk.commands.authorize({ client_id: discordSdk.clientId, response_type: "code", state: "", prompt: "none", scope: ["identify"] });
-                const response = await fetch('/api/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
-                const { access_token } = await response.json();
-                const auth = await discordSdk.commands.authenticate({ access_token });
-                document.getElementById('welcome-text').innerText = `Welcome, ${auth.user.username}!`;
-            } catch (e) { console.log("Discord Auth Skipped."); }
-        }
-        setupDiscord();
+            document.getElementById('copy-btn').onclick = () => { 
+                navigator.clipboard.writeText(shareStr); 
+                document.getElementById('copy-btn').innerText = "✅ Copied!"; 
+            };
+        });
     </script>
 </body>
 </html>
