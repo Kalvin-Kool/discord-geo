@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiscordGeo Modes</title>
+    <title>DiscordGeo Global</title>
     
     <link rel="stylesheet" href="/unpkg/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="/cdn/npm/pannellum@2.5.6/build/pannellum.css" />
     
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; background-color: #1e1f22;}
@@ -21,7 +20,9 @@
         .mode-btn span { font-size: 12px; color: #aaa; margin-top: 5px; font-weight: normal; text-transform: none; }
         
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        #panorama { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 10; background: #111; }
+        
+        /* The Walkable Street View Iframe */
+        #streetview-iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; z-index: 10; transition: opacity 0.5s; background: #111; }
         
         #ui-overlay { position: absolute; top: 15px; left: 15px; padding: 10px 20px; background: rgba(30, 31, 34, 0.85); border-radius: 8px; z-index: 99; backdrop-filter: blur(5px); border-bottom: 3px solid #1d8a4a; }
         #ui-overlay h2 { margin: 0; font-size: 18px; color: #fff; }
@@ -48,7 +49,9 @@
     <div id="menu-screen" class="earth-gradient">
         <h1 id="welcome-text">DiscordGeo</h1>
         
-        <div class="mode-container">
+        <p id="loading-text" style="display: none; font-size: 20px; font-weight: bold;">Hunting location around the globe... 🌍</p>
+        
+        <div class="mode-container" id="mode-buttons">
             <button class="mode-btn" id="btn-daily">
                 🌍 Daily Challenge
                 <span>Same location for everyone today.</span>
@@ -62,7 +65,10 @@
 
     <div id="game-screen">
         <div id="ui-overlay"><h2 id="mode-title">DiscordGeo</h2></div>
-        <div id="panorama"></div>
+        
+        <!-- The Walkable Street View Iframe! -->
+        <iframe id="streetview-iframe" allowfullscreen></iframe>
+        
         <div id="map-container">
             <div id="map"></div>
             <div id="guess-btn-box"><button id="guess-btn">LOCK IN GUESS</button></div>
@@ -71,62 +77,55 @@
 
     <div id="result-screen" class="earth-gradient" style="display: none; opacity: 0;">
         <h2 class="result-title">The target was</h2>
-        <h1 class="result-location" id="res-location">City, Country</h1>
+        <h1 class="result-location" id="res-location">Loading...</h1>
         <p class="result-stats">Distance: <span id="res-dist">0</span> km</p>
         <p class="result-stats" style="color: #c9ffdb;">Points: <span id="res-score">0</span></p>
         
-        <!-- These swap depending on the mode -->
         <button id="copy-btn" class="end-btn" style="display: none;">📋 Copy to Chat</button>
         <button id="next-btn" class="end-btn" style="display: none;">🎲 Play Again</button>
     </div>
 
     <script src="/unpkg/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/cdn/npm/pannellum@2.5.6/build/pannellum.js"></script>
     
     <script type="module">
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
-        // ⚠️ PASTE YOUR DISCORD CLIENT ID HERE ⚠️
+        // ⚠️ PASTE ONLY YOUR DISCORD CLIENT ID HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
+        
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
         discordSdk.ready().catch(() => console.log("Running outside Discord"));
 
-        // 🟢 MASSIVE GLOBAL LOCATION DATABASE 🟢
-        // Notice the /wiki proxy path!
-        const locations = [
-            { name: "Trafalgar Square, London", lat: 51.508, lng: -0.128, imgUrl: "/wiki/wikipedia/commons/f/fa/Trafalgar_Square_360_Panorama.jpg" },
-            { name: "Colosseum Interior, Rome", lat: 41.890, lng: 12.492, imgUrl: "/wiki/wikipedia/commons/9/9d/360_degree_view_of_the_inside_of_the_Colosseum.jpg" },
-            { name: "Times Square, New York", lat: 40.758, lng: -73.985, imgUrl: "/wiki/wikipedia/commons/0/07/Times_Square_360_Panorama.jpg" },
-            { name: "Cathedral of the Assumption, Malta", lat: 36.045, lng: 14.239, imgUrl: "/wiki/wikipedia/commons/8/87/Interior_of_the_Cathedral_of_the_Assumption%2C_Gozo_-_360%C2%B0_Photosphere.jpg" },
-            { name: "ALMA Observatory, Chile", lat: -23.0234, lng: -67.7538, imgUrl: "/pano/images/alma.jpg" },
-            { name: "Baltimore Museum, USA", lat: 39.3259, lng: -76.6195, imgUrl: "/pano/images/bma-0.jpg" }
-        ];
-        
         let currentMode = ""; 
         let currentTarget = null;
         let playerGuessLat = null;
         let playerGuessLon = null;
-        let map, playerMarker, targetMarker, flightPath, viewer;
+        let map, playerMarker, targetMarker, flightPath;
 
-        function initRound(mode) {
+        async function initRound(mode) {
             currentMode = mode;
             playerGuessLat = null;
             playerGuessLon = null;
             
-            // Choose Location Logic
-            if (mode === "daily") {
-                document.getElementById('mode-title').innerText = "Daily Challenge";
-                const dayIndex = Math.floor(Date.now() / 86400000);
-                currentTarget = locations[dayIndex % locations.length];
-            } else {
-                document.getElementById('mode-title').innerText = "Casual Play";
-                const randIndex = Math.floor(Math.random() * locations.length);
-                currentTarget = locations[randIndex];
+            // Show Loading Text
+            document.getElementById('mode-buttons').style.display = 'none';
+            document.getElementById('loading-text').style.display = 'block';
+            document.getElementById('result-screen').style.opacity = '0';
+            
+            const seed = Math.floor(Date.now() / 86400000); // Gets current day number
+            document.getElementById('mode-title').innerText = (mode === "daily") ? "Daily Challenge" : "Casual Play";
+
+            // 🔥 Fetch Random Location from Vercel Backend 🔥
+            try {
+                const res = await fetch(`/api/location?mode=${mode}&seed=${seed}`);
+                currentTarget = await res.json();
+            } catch(e) {
+                alert("Failed to find a location! Try clicking again.");
+                window.location.reload();
             }
 
             // Screen Transitions
             document.getElementById('menu-screen').style.opacity = '0';
-            document.getElementById('result-screen').style.opacity = '0';
             
             setTimeout(() => {
                 document.getElementById('menu-screen').style.display = 'none';
@@ -135,18 +134,12 @@
                 
                 // Reset UI
                 document.getElementById('guess-btn-box').style.display = 'block';
-                document.getElementById('panorama').style.opacity = '1';
+                document.getElementById('streetview-iframe').style.opacity = '1';
                 document.getElementById('map-container').classList.remove('fullscreen-map');
                 
-                // Load 360 Viewer
-                if(viewer) viewer.destroy(); // Clear old panorama
-                viewer = pannellum.viewer('panorama', {
-                    "type": "equirectangular",
-                    "panorama": currentTarget.imgUrl,
-                    "autoLoad": true,
-                    "showZoomCtrl": false,
-                    "mouseZoom": false
-                });
+                // Load Walkable Mapillary Iframe
+                const iframe = document.getElementById('streetview-iframe');
+                iframe.src = `https://www.mapillary.com/embed?image_key=${currentTarget.id}&style=photo`;
 
                 // Load Leaflet Map (Only initialize once)
                 if(!map) {
@@ -163,7 +156,6 @@
                         }).addTo(map);
                     });
                 } else {
-                    // Reset map for casual play
                     map.setView([20, 0], 1);
                     if(playerMarker) map.removeLayer(playerMarker);
                     if(targetMarker) map.removeLayer(targetMarker);
@@ -178,7 +170,13 @@
         // Button Listeners
         document.getElementById('btn-daily').addEventListener('click', () => initRound('daily'));
         document.getElementById('btn-casual').addEventListener('click', () => initRound('casual'));
-        document.getElementById('next-btn').addEventListener('click', () => initRound('casual'));
+        document.getElementById('next-btn').addEventListener('click', () => {
+            document.getElementById('result-screen').style.display = 'none';
+            document.getElementById('menu-screen').style.display = 'flex';
+            document.getElementById('menu-screen').style.opacity = '1';
+            document.getElementById('mode-buttons').style.display = 'flex';
+            document.getElementById('loading-text').style.display = 'none';
+        });
 
         // LOCK IN GUESS
         document.getElementById('guess-btn').addEventListener('click', () => {
@@ -194,7 +192,7 @@
             if (distance < 50) points = 5000; 
 
             document.getElementById('guess-btn-box').style.display = 'none'; 
-            document.getElementById('panorama').style.opacity = '0'; 
+            document.getElementById('streetview-iframe').style.opacity = '0'; 
             document.getElementById('map-container').classList.add('fullscreen-map');
             
             setTimeout(() => {
@@ -216,7 +214,6 @@
                     document.getElementById('game-screen').style.display = 'none'; 
                     resultUI.style.display = 'flex';
                     
-                    // Show correct buttons based on mode!
                     document.getElementById('copy-btn').style.display = (currentMode === 'daily') ? 'block' : 'none';
                     document.getElementById('next-btn').style.display = (currentMode === 'casual') ? 'block' : 'none';
                     
