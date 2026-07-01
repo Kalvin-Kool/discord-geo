@@ -5,221 +5,147 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DiscordGeo</title>
     
-    <!-- Leaflet CSS (The Guessing Map) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- Mapillary CSS (The Street View) -->
     <link href="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.css" rel="stylesheet" />
     
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #313338; color: white; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #313338; color: white; }
         
-        /* Menu & Result Screens */
         #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; background: #313338; }
-        .hidden { display: none !important; }
-        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 10px;}
+        button { background: #5865F2; color: white; border: none; padding: 12px 24px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px;}
         button:hover { background: #4752C4; }
         
-        /* Game Screen */
-        #game-screen { position: relative; width: 100%; height: 100%; }
+        #game-screen { position: relative; width: 100%; height: 100%; display: none; }
         
-        /* Mapillary Container */
         #mly { width: 100%; height: 100%; background-color: #1e1f22; }
         
-        /* UI Branding Overlay */
-        #ui-overlay { position: absolute; top: 10px; left: 10px; padding: 10px 20px; background: rgba(30, 31, 34, 0.9); border-radius: 8px; z-index: 99; box-shadow: 0 4px 6px rgba(0,0,0,0.5); pointer-events: none; }
+        #ui-overlay { position: absolute; top: 10px; left: 10px; padding: 10px 20px; background: rgba(30, 31, 34, 0.9); border-radius: 8px; z-index: 99; pointer-events: none; }
         #ui-overlay h2 { margin: 0; font-size: 18px; }
         
-        /* Interactive Map */
-        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 220px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.6); transition: width 0.3s, height 0.3s; background: #e0e0e0; }
+        #map-container { position: absolute; bottom: 20px; right: 20px; width: 320px; height: 220px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 16px rgba(0,0,0,0.6); transition: 0.3s; background: #e0e0e0; }
         #map-container:hover { width: 500px; height: 350px; }
         #map { width: 100%; height: 100%; }
         #guess-btn { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 101; background: #23a559; width: 80%; }
-        #guess-btn:hover { background: #1d8a4a; }
-        
-        /* Results */
-        .score-box { font-size: 48px; font-weight: bold; color: #FEE75C; margin: 10px 0; }
-        #share-text { background: #1e1f22; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; margin-bottom: 20px; line-height: 1.5; }
     </style>
 </head>
 <body>
 
-    <!-- 1. Menu Screen -->
     <div id="menu-screen">
-        <h1 id="welcome-text">Loading Discord Activity...</h1>
+        <h1 id="welcome-text">DiscordGeo Daily</h1>
         <p>A new location is chosen every single day.</p>
-        <button id="start-btn" class="hidden">Play Daily Challenge</button>
+        <button id="start-btn" onclick="startGame()">Play Daily Challenge</button>
     </div>
 
-    <!-- 2. Game Screen -->
-    <div id="game-screen" class="hidden">
-        <div id="ui-overlay">
-            <h2>🌍 DiscordGeo Daily</h2>
-        </div>
-        
-        <!-- This div holds the Mapillary Street View -->
+    <div id="game-screen">
+        <div id="ui-overlay"><h2>🌍 DiscordGeo Daily</h2></div>
         <div id="mly"></div>
-        
         <div id="map-container">
             <div id="map"></div>
-            <button id="guess-btn">LOCK IN GUESS</button>
+            <button id="guess-btn" onclick="lockGuess()">LOCK IN GUESS</button>
         </div>
     </div>
 
-    <!-- 3. Result Screen -->
-    <div id="result-screen" class="hidden">
+    <div id="result-screen" style="display: none;">
         <h2>Target Locked!</h2>
         <p>You were <span id="dist-text">0</span> km away from <b id="location-name">The Target</b>.</p>
-        <div class="score-box" id="score-text">0 PTS</div>
-        <div id="share-text"></div>
+        <h1 id="score-text" style="color:#FEE75C; font-size: 48px; margin: 10px 0;">0 PTS</h1>
+        <div id="share-text" style="background:#1e1f22; padding:15px; border-radius:8px; font-family:monospace; white-space:pre-wrap; margin-bottom:20px;"></div>
         <button id="copy-btn">📋 Copy Result to Chat</button>
     </div>
 
-    <!-- Scripts -->
+    <!-- Map Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.js"></script>
     
-    <script type="module">
-        import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
-        
-        // --- 1. SET UP DAILY LOCATIONS ---
+    <!-- GAME LOGIC (Isolated from Discord) -->
+    <script>
         const dailyLocations = [
-            { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }, 
             { imageId: '3164478140498425', lat: 48.8566, lng: 2.3522, name: "Paris, France" },
-            { imageId: '1016542289456950', lat: 51.5072, lng: -0.1276, name: "London, UK" }
+            { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }
         ];
-
-        const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+        
+        const dayIndex = Math.floor(Date.now() / 86400000);
         const todayTarget = dailyLocations[dayIndex % dailyLocations.length];
         
         let playerGuessLat = null;
         let playerGuessLon = null;
-        let discordUser = "Explorer";
 
-        // --- 2. INITIALIZE DISCORD SDK ---
-        // ⚠️ PASTE YOUR CLIENT ID BELOW ⚠️
-        const discordSdk = new DiscordSDK("1521354566791200829");
-        
-        async function setupDiscord() {
-            try {
-                await discordSdk.ready();
-                
-                // Allow the Play button to appear even if Discord Auth takes a second
-                document.getElementById('start-btn').classList.remove('hidden');
-                document.getElementById('welcome-text').innerText = `Welcome to DiscordGeo!`;
-                
-                // Try to get their username (runs in background)
-                const { code } = await discordSdk.commands.authorize({
-                    client_id: discordSdk.clientId,
-                    response_type: "code",
-                    state: "",
-                    prompt: "none",
-                    scope: ["identify"]
-                });
+        function startGame() {
+            document.getElementById('menu-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
 
-                const response = await fetch('/api/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
-                });
-                const { access_token } = await response.json();
-                
-                const auth = await discordSdk.commands.authenticate({ access_token });
-                discordUser = auth.user.username;
-                document.getElementById('welcome-text').innerText = `Welcome, ${discordUser}!`;
-                
-            } catch (e) {
-                console.log("Discord Auth fallback engaged.");
-                document.getElementById('start-btn').classList.remove('hidden');
-                document.getElementById('welcome-text').innerText = `Welcome, Explorer!`;
-            }
-        }
-        setupDiscord();
-
-        // --- 3. START GAME & LOAD MAPS ---
-        document.getElementById('start-btn').addEventListener('click', () => {
-            // Unhide the screen FIRST so the maps know how big to be!
-            document.getElementById('menu-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-
-            // ⚠️ PASTE YOUR MAPILLARY TOKEN BELOW ⚠️
+            // ⚠️ PASTE MAPILLARY TOKEN HERE ⚠️
             const mapillaryToken = 'MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f';
 
-            // Wait a split second for the CSS to update, then spawn Mapillary
-            setTimeout(() => {
-                const { Viewer } = mapillary;
-                const viewer = new Viewer({
-                    accessToken: mapillaryToken,
-                    container: 'mly',
-                    imageId: todayTarget.imageId,
-                    component: { cover: false } 
-                });
-                
-                // Keep streetview sized correctly if they resize Discord
-                window.addEventListener("resize", () => viewer.resize());
-            }, 100);
+            // Load Street View
+            const viewer = new mapillary.Viewer({
+                accessToken: mapillaryToken,
+                container: 'mly',
+                imageId: todayTarget.imageId,
+                component: { cover: false }
+            });
+            window.addEventListener("resize", () => viewer.resize());
 
-            // Spawn Leaflet Map
-            initMap();
-        });
-
-        // --- 4. MAP & GUESSING LOGIC ---
-        let map, guessMarker;
-        function initMap() {
-            map = L.map('map').setView([20, 0], 1);
+            // Load Leaflet Map
+            const map = L.map('map').setView([20, 0], 1);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             
-            // Using reliable OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OSM'
-            }).addTo(map);
+            // Fix Leaflet Gray Bug
+            setTimeout(() => { map.invalidateSize(); }, 500);
 
-            // Force Leaflet to recalculate its size after it unhides!
-            setTimeout(() => {
-                map.invalidateSize();
-            }, 200);
-
-            map.on('click', function(e) {
+            let marker;
+            map.on('click', (e) => {
                 playerGuessLat = e.latlng.lat;
                 playerGuessLon = e.latlng.lng;
-                if (guessMarker) guessMarker.setLatLng(e.latlng);
-                else guessMarker = L.marker(e.latlng).addTo(map);
+                if(marker) marker.setLatLng(e.latlng);
+                else marker = L.marker(e.latlng).addTo(map);
             });
         }
 
-        // Distance Math
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return Math.round(R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))));
-        }
-
-        // Lock in Guess
-        document.getElementById('guess-btn').addEventListener('click', () => {
+        function lockGuess() {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
-            const distance = calculateDistance(playerGuessLat, playerGuessLon, todayTarget.lat, todayTarget.lng);
+            const R = 6371; 
+            const dLat = (todayTarget.lat - playerGuessLat) * Math.PI / 180;
+            const dLon = (todayTarget.lng - playerGuessLon) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(playerGuessLat * Math.PI / 180) * Math.cos(todayTarget.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const distance = Math.round(R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))));
             
             let points = Math.round(5000 * Math.exp(-distance / 2000));
             if (distance < 50) points = 5000; 
 
-            document.getElementById('game-screen').classList.add('hidden');
-            document.getElementById('result-screen').classList.remove('hidden');
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'flex';
             
             document.getElementById('dist-text').innerText = distance.toLocaleString();
             document.getElementById('location-name').innerText = todayTarget.name;
             document.getElementById('score-text').innerText = points.toLocaleString() + " PTS";
 
             const emojis = (points > 4500) ? "🟩🟩🟩🟩🟩" : (points > 3000) ? "🟩🟩🟩🟨⬜" : "🟨🟨⬜⬜⬜";
-            const shareString = `🌍 DiscordGeo Daily\n${emojis}\n📍 ${distance.toLocaleString()} km away\n🏆 ${points.toLocaleString()} Points`;
-            document.getElementById('share-text').innerText = shareString;
+            const shareStr = `🌍 DiscordGeo Daily\n${emojis}\n📍 ${distance.toLocaleString()} km away\n🏆 ${points.toLocaleString()} Points`;
+            document.getElementById('share-text').innerText = shareStr;
             
-            document.getElementById('copy-btn').onclick = () => {
-                navigator.clipboard.writeText(shareString);
-                document.getElementById('copy-btn').innerText = "✅ Copied!";
-            };
-        });
+            document.getElementById('copy-btn').onclick = () => { navigator.clipboard.writeText(shareStr); document.getElementById('copy-btn').innerText = "✅ Copied!"; };
+        }
+    </script>
+
+    <!-- DISCORD LOGIC (Running safely in background) -->
+    <script type="module">
+        import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
+        // ⚠️ PASTE DISCORD CLIENT ID BELOW ⚠️
+        const discordSdk = new DiscordSDK("1521354566791200829");
+        
+        async function setupDiscord() {
+            try {
+                await discordSdk.ready();
+                const { code } = await discordSdk.commands.authorize({ client_id: discordSdk.clientId, response_type: "code", state: "", prompt: "none", scope: ["identify"] });
+                const response = await fetch('/api/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+                const { access_token } = await response.json();
+                const auth = await discordSdk.commands.authenticate({ access_token });
+                document.getElementById('welcome-text').innerText = `Welcome, ${auth.user.username}!`;
+            } catch (e) { console.log("Discord Auth Skipped."); }
+        }
+        setupDiscord();
     </script>
 </body>
 </html>
