@@ -3,146 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiscordGeo V4</title>
-    
-    <!-- Safely loading CSS through your Discord Proxy! -->
+    <title>DiscordGeo Infinite</title>
     <link rel="stylesheet" href="/unpkg/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="/unpkg/mapillary-js@4.1.1/dist/mapillary.css" />
-    
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; background-color: #1e1f22;}
-        
-        /* 🟩 The V4 Launch Screen 🟩 */
-        #menu-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 300; background: linear-gradient(135deg, #1d8a4a 0%, #1e1f22 100%); transition: opacity 0.5s; }
-        #welcome-text { font-size: 40px; margin-bottom: 5px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        
-        button { background: #23a559; color: white; border: none; padding: 15px 40px; font-size: 20px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-top: 20px; text-transform: uppercase; box-shadow: 0 4px 15px rgba(0,0,0,0.4); transition: 0.2s; }
-        button:hover { background: #1d8a4a; transform: scale(1.05); }
+        .earth-gradient { background: linear-gradient(135deg, #1d8a4a 0%, #0072FF 100%); }
+        #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 300; transition: opacity 0.5s; text-align: center; padding: 20px; box-sizing: border-box; }
+        #welcome-text { font-size: 45px; margin-bottom: 5px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); font-weight: 800; letter-spacing: 1px; }
+        button { background: #2b2d31; color: white; border: 2px solid rgba(255,255,255,0.2); padding: 15px 40px; font-size: 20px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-top: 20px; text-transform: uppercase; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; }
+        button:hover { background: #1e1f22; border-color: white; transform: scale(1.05); }
         
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        
-        /* The 3D Street View Container */
-        #mly { width: 100%; height: 100%; background-color: #111; position: absolute; top: 0; left: 0; z-index: 10; transition: opacity 0.5s; }
-        
-        /* UI Overlay */
-        #ui-overlay { position: absolute; top: 15px; left: 15px; padding: 10px 20px; background: rgba(30, 31, 34, 0.85); border-radius: 8px; z-index: 99; backdrop-filter: blur(5px); border-bottom: 3px solid #23a559; }
+        #streetview-iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; z-index: 10; transition: opacity 0.5s; background: #111; }
+        #ui-overlay { position: absolute; top: 15px; left: 15px; padding: 10px 20px; background: rgba(30, 31, 34, 0.85); border-radius: 8px; z-index: 99; backdrop-filter: blur(5px); border-bottom: 3px solid #1d8a4a; }
         #ui-overlay h2 { margin: 0; font-size: 18px; color: #fff; }
         
-        /* The Guessing Map */
-        #map-container { position: absolute; bottom: 20px; right: 20px; width: 350px; height: 280px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 8px 25px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; border: 3px solid #1e1f22; transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
+        #map-container { position: absolute; bottom: 20px; right: 20px; width: 350px; height: 280px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; border: 3px solid #1e1f22; transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
         #map-container:hover { width: 450px; height: 350px; }
-        
-        /* The Magic Fullscreen Map Class (For the Endgame Sequence) */
         .fullscreen-map { width: 100% !important; height: 100% !important; bottom: 0 !important; right: 0 !important; border-radius: 0 !important; border: none !important; z-index: 150 !important; }
         
-        #map { width: 100%; flex-grow: 1; background: #9bbcf2; } /* Water color before tiles load */
+        #map { width: 100%; flex-grow: 1; background: #9bbcf2; } 
         #guess-btn-box { padding: 12px; text-align: center; background: #1e1f22; }
-        #guess-btn { width: 100%; margin: 0; padding: 12px 0; font-size: 16px; border-radius: 8px; box-shadow: none; }
+        #guess-btn { width: 100%; margin: 0; padding: 12px 0; font-size: 16px; border-radius: 8px; box-shadow: none; background: #1d8a4a; border: none; }
+        #guess-btn:hover { background: #156636; transform: none; }
         
-        /* The Sleek Result Glass Panel */
-        #result-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(30, 31, 34, 0.95); padding: 40px; border-radius: 16px; text-align: center; z-index: 200; display: none; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border-top: 4px solid #23a559; backdrop-filter: blur(10px); min-width: 300px; opacity: 0; transition: opacity 0.5s; }
-        #score-text { color: #FEE75C; font-size: 60px; margin: 10px 0; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        #share-text { background: #111; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; margin-bottom: 20px; color: #bbb; border: 1px solid #333; }
+        .result-title { font-size: 35px; margin: 0 0 10px 0; font-weight: 300; }
+        .result-location { font-size: 45px; margin: 0 0 30px 0; font-weight: 800; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .result-stats { font-size: 28px; margin: 5px 0; font-weight: 600; }
     </style>
 </head>
 <body>
 
-    <!-- Launch Screen -->
-    <div id="menu-screen">
-        <h1 id="welcome-text">🌍 DiscordGeo</h1>
-        <p>A new location is chosen every single day.</p>
-        <button id="start-btn">DROP IN</button>
+    <div id="menu-screen" class="earth-gradient">
+        <h1 id="welcome-text">DiscordGeo</h1>
+        <p style="font-size: 18px;" id="status-text">Hunting down today's location...</p>
+        <button id="start-btn" style="display: none;">DROP IN</button>
     </div>
 
-    <!-- Game Screen -->
     <div id="game-screen">
-        <div id="ui-overlay"><h2>🌍 Daily Challenge</h2></div>
-        
-        <!-- Native Mapillary Engine (No iframes!) -->
-        <div id="mly"></div>
-        
-        <!-- Interactive Map -->
+        <div id="ui-overlay"><h2>Daily Challenge</h2></div>
+        <iframe id="streetview-iframe" allowfullscreen></iframe>
         <div id="map-container">
             <div id="map"></div>
-            <div id="guess-btn-box">
-                <button id="guess-btn">📍 LOCK IN GUESS</button>
-            </div>
+            <div id="guess-btn-box"><button id="guess-btn">LOCK IN GUESS</button></div>
         </div>
     </div>
 
-    <!-- Result Overlay (Slides over the map) -->
-    <div id="result-overlay">
-        <h2 style="margin-top:0;">🎯 Round Over</h2>
-        <p style="color: #bbb; margin-bottom: 0;">Distance to target:</p>
-        <h3 style="margin: 5px 0 20px 0; font-size: 24px;"><span id="dist-text">0</span> km</h3>
-        
-        <h1 id="score-text">0 PTS</h1>
-        
-        <div id="share-text"></div>
-        <button id="copy-btn" style="width: 100%; margin-top: 0;">📋 Copy to Chat</button>
+    <div id="result-screen" class="earth-gradient" style="display: none; opacity: 0;">
+        <h2 class="result-title">The target was</h2>
+        <h1 class="result-location" id="res-location">Loading...</h1>
+        <p class="result-stats">Distance: <span id="res-dist">0</span> km</p>
+        <p class="result-stats" style="color: #c9ffdb;">Points: <span id="res-score">0</span></p>
+        <button id="copy-btn">Copy to Chat</button>
     </div>
 
-    <!-- Safely loading Javascript through your Discord Proxy! -->
     <script src="/unpkg/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/unpkg/mapillary-js@4.1.1/dist/mapillary.js"></script>
     
     <script type="module">
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
         // ==========================================
-        // ⚠️ PASTE YOUR KEYS HERE ⚠️
+        // ⚠️ PASTE BOTH OF YOUR KEYS HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
         const MAPILLARY_TOKEN = "MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f";
         // ==========================================
 
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
-        
-        // Drop the Discord Shield
-        discordSdk.ready().then(() => {
-            console.log("Discord Shield Dropped!");
-        }).catch(() => {
-            console.log("Running in browser test mode.");
-        });
+        discordSdk.ready().catch(() => console.log("Running outside Discord"));
 
-        // Daily Locations
-        const dailyLocations = [
-            { imageId: '3164478140498425', lat: 48.8566, lng: 2.3522, name: "Paris, France" },
-            { imageId: '498763468214164', lat: 34.0522, lng: -118.2437, name: "Los Angeles, USA" }
+        // 🟢 THE AUTOMATIC LOCATION ZONES 🟢
+        // The game will pick a random zone, and find a random street view inside it!
+        const safeZones = [
+            { name: "New York, USA", bbox: "-74.01,40.70,-73.93,40.79" },
+            { name: "London, UK", bbox: "-0.20,51.45,0.05,51.55" },
+            { name: "Paris, France", bbox: "2.25,48.82,2.40,48.90" },
+            { name: "Tokyo, Japan", bbox: "139.65,35.65,139.80,35.75" },
+            { name: "Sydney, Australia", bbox: "151.15,-33.90,151.25,-33.80" },
+            { name: "Rome, Italy", bbox: "12.45,41.85,12.55,41.95" },
+            { name: "Toronto, Canada", bbox: "-79.45,43.63,-79.35,43.70" }
         ];
-        
-        const dayIndex = Math.floor(Date.now() / 86400000);
-        const todayTarget = dailyLocations[dayIndex % dailyLocations.length];
-        
+
+        // Seeded Random Number Generator (So everyone gets the exact same location today)
+        function seededRandom(seed) {
+            let x = Math.sin(seed++) * 10000;
+            return x - Math.floor(x);
+        }
+
+        let todayTarget = {};
         let playerGuessLat = null;
         let playerGuessLon = null;
         let map, playerMarker, targetMarker, flightPath;
 
-        // START GAME
+        // 🟢 AUTO-HUNT TODAY'S LOCATION ON BOOT 🟢
+        async function fetchDailyLocation() {
+            try {
+                const daySeed = Math.floor(Date.now() / 86400000); // Gets current day number
+                
+                // Pick a random city based on the day
+                const zoneIndex = Math.floor(seededRandom(daySeed) * safeZones.length);
+                const zone = safeZones[zoneIndex];
+
+                // Ask Mapillary API for 50 random 360-degree street views in that city!
+                // (Safely passing through the /graph Discord proxy we just made)
+                const res = await fetch(`/graph/images?fields=id,geometry&bbox=${zone.bbox}&is_pano=true&limit=50&access_token=${MAPILLARY_TOKEN}`);
+                const data = await res.json();
+
+                // Pick a specific street view based on the day
+                const imageIndex = Math.floor(seededRandom(daySeed + 1) * data.data.length);
+                const selectedImage = data.data[imageIndex];
+
+                // Save it for the game!
+                todayTarget = {
+                    name: zone.name,
+                    lat: selectedImage.geometry.coordinates[1],
+                    lng: selectedImage.geometry.coordinates[0],
+                    imageId: selectedImage.id
+                };
+
+                // Turn on the Play Button!
+                document.getElementById('status-text').style.display = 'none';
+                document.getElementById('start-btn').style.display = 'block';
+
+            } catch (err) {
+                document.getElementById('status-text').innerText = "Error hunting location. Try again!";
+            }
+        }
+        
+        // Start hunting as soon as the page loads!
+        fetchDailyLocation();
+
+        // 🟢 START GAME 🟢
         document.getElementById('start-btn').addEventListener('click', () => {
             document.getElementById('menu-screen').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('menu-screen').style.display = 'none';
                 document.getElementById('game-screen').style.display = 'block';
                 
-                // 1. Initialize Mapillary natively (sneaks past firewall)
-                const viewer = new mapillary.Viewer({
-                    accessToken: MAPILLARY_TOKEN,
-                    container: 'mly',
-                    imageId: todayTarget.imageId,
-                    component: { cover: false }
-                });
-                window.addEventListener("resize", () => viewer.resize());
+                // Load Mapillary Embed Iframe with the auto-generated Image ID!
+                const iframe = document.getElementById('streetview-iframe');
+                iframe.src = `https://www.mapillary.com/embed?image_key=${todayTarget.imageId}&style=photo`;
 
-                // 2. Initialize Leaflet Map
+                // Load Leaflet Map
                 map = L.map('map', { zoomControl: false }).setView([20, 0], 1);
                 L.control.zoom({ position: 'topleft' }).addTo(map);
-                
-                // Map tiles via the safe /osm proxy
                 L.tileLayer('/osm/{z}/{x}/{y}.png').addTo(map);
                 
                 setTimeout(() => { map.invalidateSize(); }, 300);
 
-                // Custom Blue Pin for Player
                 const playerIcon = L.icon({
                     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
                     iconSize: [25, 41], iconAnchor: [12, 41]
@@ -157,13 +164,10 @@
             }, 500);
         });
 
-        // ==============================================
-        // 🎬 THE GEOGUESSR ENDGAME CINEMATIC SEQUENCE 🎬
-        // ==============================================
+        // 🟢 LOCK IN GUESS 🟢
         document.getElementById('guess-btn').addEventListener('click', () => {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
-            // 1. Calculate Score
             const R = 6371; 
             const dLat = (todayTarget.lat - playerGuessLat) * Math.PI / 180;
             const dLon = (todayTarget.lng - playerGuessLon) * Math.PI / 180;
@@ -173,56 +177,48 @@
             let points = Math.round(5000 * Math.exp(-distance / 2000));
             if (distance < 50) points = 5000; 
 
-            // 2. Prepare the UI Transition
-            document.getElementById('guess-btn-box').style.display = 'none'; // Hide button
-            document.getElementById('mly').style.opacity = '0'; // Fade out street view
+            document.getElementById('guess-btn-box').style.display = 'none'; 
+            document.getElementById('streetview-iframe').style.opacity = '0'; 
             
-            // 3. Expand map to Fullscreen
             const mapCont = document.getElementById('map-container');
             mapCont.classList.add('fullscreen-map');
             
-            // Allow CSS to animate, then update map bounds
             setTimeout(() => {
                 map.invalidateSize();
                 
-                // 4. Drop the True Target Pin (Red)
                 const targetIcon = L.icon({
                     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
                     iconSize: [25, 41], iconAnchor: [12, 41]
                 });
                 targetMarker = L.marker([todayTarget.lat, todayTarget.lng], {icon: targetIcon}).addTo(map);
 
-                // 5. Draw the Dashed Red Line
                 flightPath = L.polyline(
                     [[playerGuessLat, playerGuessLon], [todayTarget.lat, todayTarget.lng]], 
                     {color: '#ff3333', dashArray: '10, 10', weight: 4, opacity: 0.8}
                 ).addTo(map);
 
-                // 6. Smoothly Fly the Camera to show both pins!
                 map.flyToBounds(flightPath.getBounds(), { padding: [80, 80], duration: 2.5, easeLinearity: 0.25 });
                 
-                // 7. Wait for camera to finish flying, then slide in the Score UI
                 setTimeout(() => {
-                    const resultUI = document.getElementById('result-overlay');
-                    resultUI.style.display = 'block';
+                    const resultUI = document.getElementById('result-screen');
+                    document.getElementById('game-screen').style.display = 'none'; 
+                    resultUI.style.display = 'flex';
                     
-                    // Trigger fade-in
                     setTimeout(() => { resultUI.style.opacity = '1'; }, 50);
                     
-                    document.getElementById('dist-text').innerText = distance.toLocaleString();
-                    document.getElementById('score-text').innerText = points.toLocaleString() + " PTS";
+                    document.getElementById('res-location').innerText = todayTarget.name;
+                    document.getElementById('res-dist').innerText = distance.toLocaleString();
+                    document.getElementById('res-score').innerText = points.toLocaleString();
 
-                    const emojis = (points > 4500) ? "🟩🟩🟩🟩🟩" : (points > 3000) ? "🟩🟩🟩🟨⬜" : "🟨🟨⬜⬜⬜";
-                    const shareStr = `🌍 DiscordGeo Daily\n${emojis}\n📍 ${distance.toLocaleString()} km away\n🏆 ${points.toLocaleString()} Points`;
-                    document.getElementById('share-text').innerText = shareStr;
+                    const shareStr = `DiscordGeo Daily\nTarget: ${todayTarget.name}\nDistance: ${distance.toLocaleString()} km\nPoints: ${points.toLocaleString()}`;
                     
                     document.getElementById('copy-btn').onclick = () => { 
                         navigator.clipboard.writeText(shareStr); 
-                        document.getElementById('copy-btn').innerText = "✅ Copied!"; 
+                        document.getElementById('copy-btn').innerText = "Copied!"; 
                     };
-                }, 2800); // Wait 2.8 seconds for the camera flight
+                }, 2800); 
 
-            }, 500); // Wait 0.5s for map to expand
+            }, 500);
         });
     </script>
 </body>
