@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiscordGeo Infinite</title>
+    <title>DiscordGeo Auto-FailSafe</title>
     <link rel="stylesheet" href="/unpkg/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; background-color: #1e1f22;}
@@ -65,85 +65,90 @@
         // ==========================================
         // ⚠️ PASTE BOTH OF YOUR KEYS HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
-        const MAPILLARY_TOKEN = "MLY|27338767892447751|4d784809dcc12b4b1c2c38d81c999b0f";
+        const MAPILLARY_TOKEN = "MLY|27298611696459437|b5e632d76d8f3e4e7f84397f055f86a4";
         // ==========================================
 
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
         discordSdk.ready().catch(() => console.log("Running outside Discord"));
 
-        // 🟢 THE AUTOMATIC LOCATION ZONES 🟢
-        // The game will pick a random zone, and find a random street view inside it!
-        const safeZones = [
-            { name: "New York, USA", bbox: "-74.01,40.70,-73.93,40.79" },
-            { name: "London, UK", bbox: "-0.20,51.45,0.05,51.55" },
-            { name: "Paris, France", bbox: "2.25,48.82,2.40,48.90" },
-            { name: "Tokyo, Japan", bbox: "139.65,35.65,139.80,35.75" },
-            { name: "Sydney, Australia", bbox: "151.15,-33.90,151.25,-33.80" },
-            { name: "Rome, Italy", bbox: "12.45,41.85,12.55,41.95" },
-            { name: "Toronto, Canada", bbox: "-79.45,43.63,-79.35,43.70" }
-        ];
-
-        // Seeded Random Number Generator (So everyone gets the exact same location today)
+        // Seeded Random Number Generator
         function seededRandom(seed) {
             let x = Math.sin(seed++) * 10000;
             return x - Math.floor(x);
         }
 
         let todayTarget = {};
-        let playerGuessLat = null;
-        let playerGuessLon = null;
-        let map, playerMarker, targetMarker, flightPath;
+        const daySeed = Math.floor(Date.now() / 86400000);
 
-        // 🟢 AUTO-HUNT TODAY'S LOCATION ON BOOT 🟢
+        // 🟢 FALLBACK GOOGLE MAPS LOCATIONS (If Mapillary fails, it uses this!) 🟢
+        const backupLocations = [
+            { name: "Paris, France", lat: 48.8583701, lng: 2.2944813, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1s3PM8u2k6zP6d6FwtzXFHgA!2m2!1d48.8583701!2d2.2944813!3f0!4f0!5f0.7820865974627469" },
+            { name: "Los Angeles, USA", lat: 34.0083981, lng: -118.4988771, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1sCAoSLEFGMVFpcE42M01uTUl1V0RkMml3V1M1R09zMnd6MGJWeDVEZ0hwc19XcklM!2m2!1d34.0083981!2d-118.4988771!3f0!4f0!5f0.7820865974627469" },
+            { name: "Tokyo, Japan", lat: 35.660464, lng: 139.729249, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1sCAoSLEFGMVFpcE5CcnJvTkdOQ0QtdXk3eEZqV3dSbDFBWW9rU0pXZk5nZU83NWg3!2m2!1d35.660464!2d139.729249!3f0!4f0!5f0.782" },
+            { name: "London, UK", lat: 51.500729, lng: -0.124625, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1sCAoSLEFGMVFpcFBxX3Z0TkhYcWRwZXZnS0M3Y2lXNTVxc3JqY2hWcjBVRUo1Z3N3!2m2!1d51.500729!2d-0.124625!3f0!4f0!5f0.782" }
+        ];
+
+        // 🟢 THE AUTO-GENERATOR 🟢
         async function fetchDailyLocation() {
             try {
-                const daySeed = Math.floor(Date.now() / 86400000); // Gets current day number
+                const safeZones = [
+                    { name: "New York, USA", bbox: "-74.01,40.70,-73.93,40.79" },
+                    { name: "London, UK", bbox: "-0.20,51.45,0.05,51.55" },
+                    { name: "Paris, France", bbox: "2.25,48.82,2.40,48.90" },
+                    { name: "Tokyo, Japan", bbox: "139.65,35.65,139.80,35.75" },
+                    { name: "Sydney, Australia", bbox: "151.15,-33.90,151.25,-33.80" }
+                ];
                 
-                // Pick a random city based on the day
                 const zoneIndex = Math.floor(seededRandom(daySeed) * safeZones.length);
                 const zone = safeZones[zoneIndex];
 
-                // Ask Mapillary API for 50 random 360-degree street views in that city!
-                // (Safely passing through the /graph Discord proxy we just made)
+                // Attempt to fetch from Mapillary
                 const res = await fetch(`/graph/images?fields=id,geometry&bbox=${zone.bbox}&is_pano=true&limit=50&access_token=${MAPILLARY_TOKEN}`);
+                
+                if (!res.ok) throw new Error("Mapillary API Blocked"); // Forces fallback if Discord blocks it!
+                
                 const data = await res.json();
-
-                // Pick a specific street view based on the day
                 const imageIndex = Math.floor(seededRandom(daySeed + 1) * data.data.length);
                 const selectedImage = data.data[imageIndex];
 
-                // Save it for the game!
                 todayTarget = {
                     name: zone.name,
                     lat: selectedImage.geometry.coordinates[1],
                     lng: selectedImage.geometry.coordinates[0],
-                    imageId: selectedImage.id
+                    type: "mapillary",
+                    url: `/mapillary/embed?image_key=${selectedImage.id}&style=photo`
                 };
 
-                // Turn on the Play Button!
-                document.getElementById('status-text').style.display = 'none';
-                document.getElementById('start-btn').style.display = 'block';
-
             } catch (err) {
-                document.getElementById('status-text').innerText = "Error hunting location. Try again!";
+                console.log("Auto-Generator failed. Switching to Google Fallback!", err);
+                
+                // 🚨 FAIL-SAFE: Use a random Google Maps location instead! 🚨
+                const backupIndex = Math.floor(seededRandom(daySeed) * backupLocations.length);
+                todayTarget = backupLocations[backupIndex];
             }
+
+            // Unhide the play button!
+            document.getElementById('status-text').style.display = 'none';
+            document.getElementById('start-btn').style.display = 'block';
         }
         
-        // Start hunting as soon as the page loads!
         fetchDailyLocation();
 
         // 🟢 START GAME 🟢
+        let playerGuessLat = null;
+        let playerGuessLon = null;
+        let map, playerMarker, targetMarker, flightPath;
+
         document.getElementById('start-btn').addEventListener('click', () => {
             document.getElementById('menu-screen').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('menu-screen').style.display = 'none';
                 document.getElementById('game-screen').style.display = 'block';
                 
-                // Load Mapillary Embed Iframe with the auto-generated Image ID!
+                // Loads whatever location was chosen (Mapillary or Google)
                 const iframe = document.getElementById('streetview-iframe');
-                iframe.src = `https://www.mapillary.com/embed?image_key=${todayTarget.imageId}&style=photo`;
+                iframe.src = todayTarget.url;
 
-                // Load Leaflet Map
                 map = L.map('map', { zoomControl: false }).setView([20, 0], 1);
                 L.control.zoom({ position: 'topleft' }).addTo(map);
                 L.tileLayer('/osm/{z}/{x}/{y}.png').addTo(map);
