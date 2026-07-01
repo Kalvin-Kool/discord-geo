@@ -3,21 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiscordGeo Auto-FailSafe</title>
+    <title>DiscordGeo 360 Edition</title>
+    
+    <!-- Safely loading Maps and 360 Engine through Discord Proxies -->
     <link rel="stylesheet" href="/unpkg/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/cdn/npm/pannellum@2.5.6/build/pannellum.css" />
+    
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; background-color: #1e1f22;}
         .earth-gradient { background: linear-gradient(135deg, #1d8a4a 0%, #0072FF 100%); }
+        
         #menu-screen, #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 300; transition: opacity 0.5s; text-align: center; padding: 20px; box-sizing: border-box; }
         #welcome-text { font-size: 45px; margin-bottom: 5px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); font-weight: 800; letter-spacing: 1px; }
-        button { background: #2b2d31; color: white; border: 2px solid rgba(255,255,255,0.2); padding: 15px 40px; font-size: 20px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-top: 20px; text-transform: uppercase; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; }
+        
+        button { background: #2b2d31; color: white; border: 2px solid rgba(255,255,255,0.2); padding: 15px 40px; font-size: 20px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-top: 20px; text-transform: uppercase; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; z-index: 999; }
         button:hover { background: #1e1f22; border-color: white; transform: scale(1.05); }
         
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        #streetview-iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; z-index: 10; transition: opacity 0.5s; background: #111; }
+        
+        /* The Native 360 Viewer */
+        #panorama { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 10; background: #111; }
+        
         #ui-overlay { position: absolute; top: 15px; left: 15px; padding: 10px 20px; background: rgba(30, 31, 34, 0.85); border-radius: 8px; z-index: 99; backdrop-filter: blur(5px); border-bottom: 3px solid #1d8a4a; }
         #ui-overlay h2 { margin: 0; font-size: 18px; color: #fff; }
         
+        /* The Guessing Map */
         #map-container { position: absolute; bottom: 20px; right: 20px; width: 350px; height: 280px; border-radius: 12px; overflow: hidden; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; background: #2b2d31; border: 3px solid #1e1f22; transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
         #map-container:hover { width: 450px; height: 350px; }
         .fullscreen-map { width: 100% !important; height: 100% !important; bottom: 0 !important; right: 0 !important; border-radius: 0 !important; border: none !important; z-index: 150 !important; }
@@ -36,13 +46,16 @@
 
     <div id="menu-screen" class="earth-gradient">
         <h1 id="welcome-text">DiscordGeo</h1>
-        <p style="font-size: 18px;" id="status-text">Hunting down today's location...</p>
-        <button id="start-btn" style="display: none;">DROP IN</button>
+        <p style="font-size: 18px;">A new location is chosen every single day.</p>
+        <button id="start-btn">DROP IN</button>
     </div>
 
     <div id="game-screen">
         <div id="ui-overlay"><h2>Daily Challenge</h2></div>
-        <iframe id="streetview-iframe" allowfullscreen></iframe>
+        
+        <!-- Native 360 Viewer Canvas -->
+        <div id="panorama"></div>
+        
         <div id="map-container">
             <div id="map"></div>
             <div id="guess-btn-box"><button id="guess-btn">LOCK IN GUESS</button></div>
@@ -51,104 +64,60 @@
 
     <div id="result-screen" class="earth-gradient" style="display: none; opacity: 0;">
         <h2 class="result-title">The target was</h2>
-        <h1 class="result-location" id="res-location">Loading...</h1>
+        <h1 class="result-location" id="res-location">City, Country</h1>
         <p class="result-stats">Distance: <span id="res-dist">0</span> km</p>
         <p class="result-stats" style="color: #c9ffdb;">Points: <span id="res-score">0</span></p>
         <button id="copy-btn">Copy to Chat</button>
     </div>
 
+    <!-- Load Leaflet and Pannellum scripts securely -->
     <script src="/unpkg/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/cdn/npm/pannellum@2.5.6/build/pannellum.js"></script>
     
     <script type="module">
         import { DiscordSDK } from "https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.2.0/+esm";
         
         // ==========================================
-        // ⚠️ PASTE BOTH OF YOUR KEYS HERE ⚠️
+        // ⚠️ PASTE YOUR DISCORD CLIENT ID HERE ⚠️
         const DISCORD_CLIENT_ID = "1521354566791200829";
-        const MAPILLARY_TOKEN = "MLY|27298611696459437|b5e632d76d8f3e4e7f84397f055f86a4";
         // ==========================================
 
         const discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
         discordSdk.ready().catch(() => console.log("Running outside Discord"));
 
-        // Seeded Random Number Generator
-        function seededRandom(seed) {
-            let x = Math.sin(seed++) * 10000;
-            return x - Math.floor(x);
-        }
-
-        let todayTarget = {};
-        const daySeed = Math.floor(Date.now() / 86400000);
-
-        // 🟢 FALLBACK GOOGLE MAPS LOCATIONS (If Mapillary fails, it uses this!) 🟢
-        const backupLocations = [
-            { name: "Paris, France", lat: 48.8583701, lng: 2.2944813, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1s3PM8u2k6zP6d6FwtzXFHgA!2m2!1d48.8583701!2d2.2944813!3f0!4f0!5f0.7820865974627469" },
-            { name: "Los Angeles, USA", lat: 34.0083981, lng: -118.4988771, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1sCAoSLEFGMVFpcE42M01uTUl1V0RkMml3V1M1R09zMnd6MGJWeDVEZ0hwc19XcklM!2m2!1d34.0083981!2d-118.4988771!3f0!4f0!5f0.7820865974627469" },
-            { name: "Tokyo, Japan", lat: 35.660464, lng: 139.729249, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1sCAoSLEFGMVFpcE5CcnJvTkdOQ0QtdXk3eEZqV3dSbDFBWW9rU0pXZk5nZU83NWg3!2m2!1d35.660464!2d139.729249!3f0!4f0!5f0.782" },
-            { name: "London, UK", lat: 51.500729, lng: -0.124625, type: "google", url: "https://www.google.com/maps/embed?pb=!4v1715000000000!6m8!1m7!1sCAoSLEFGMVFpcFBxX3Z0TkhYcWRwZXZnS0M3Y2lXNTVxc3JqY2hWcjBVRUo1Z3N3!2m2!1d51.500729!2d-0.124625!3f0!4f0!5f0.782" }
+        // 🟢 HARDCODED 360° PANORAMAS 🟢
+        // Because these images come from /pano, Discord completely allows them!
+        const dailyLocations = [
+            { name: "ALMA Observatory, Chile", lat: -23.0234, lng: -67.7538, imgUrl: "/pano/images/alma.jpg" },
+            { name: "Baltimore Museum of Art, USA", lat: 39.3259, lng: -76.6195, imgUrl: "/pano/images/bma-0.jpg" },
+            { name: "Cerro Toco, Chile", lat: -22.9500, lng: -67.7700, imgUrl: "/pano/images/cerro-toco.jpg" }
         ];
-
-        // 🟢 THE AUTO-GENERATOR 🟢
-        async function fetchDailyLocation() {
-            try {
-                const safeZones = [
-                    { name: "New York, USA", bbox: "-74.01,40.70,-73.93,40.79" },
-                    { name: "London, UK", bbox: "-0.20,51.45,0.05,51.55" },
-                    { name: "Paris, France", bbox: "2.25,48.82,2.40,48.90" },
-                    { name: "Tokyo, Japan", bbox: "139.65,35.65,139.80,35.75" },
-                    { name: "Sydney, Australia", bbox: "151.15,-33.90,151.25,-33.80" }
-                ];
-                
-                const zoneIndex = Math.floor(seededRandom(daySeed) * safeZones.length);
-                const zone = safeZones[zoneIndex];
-
-                // Attempt to fetch from Mapillary
-                const res = await fetch(`/graph/images?fields=id,geometry&bbox=${zone.bbox}&is_pano=true&limit=50&access_token=${MAPILLARY_TOKEN}`);
-                
-                if (!res.ok) throw new Error("Mapillary API Blocked"); // Forces fallback if Discord blocks it!
-                
-                const data = await res.json();
-                const imageIndex = Math.floor(seededRandom(daySeed + 1) * data.data.length);
-                const selectedImage = data.data[imageIndex];
-
-                todayTarget = {
-                    name: zone.name,
-                    lat: selectedImage.geometry.coordinates[1],
-                    lng: selectedImage.geometry.coordinates[0],
-                    type: "mapillary",
-                    url: `/mapillary/embed?image_key=${selectedImage.id}&style=photo`
-                };
-
-            } catch (err) {
-                console.log("Auto-Generator failed. Switching to Google Fallback!", err);
-                
-                // 🚨 FAIL-SAFE: Use a random Google Maps location instead! 🚨
-                const backupIndex = Math.floor(seededRandom(daySeed) * backupLocations.length);
-                todayTarget = backupLocations[backupIndex];
-            }
-
-            // Unhide the play button!
-            document.getElementById('status-text').style.display = 'none';
-            document.getElementById('start-btn').style.display = 'block';
-        }
         
-        fetchDailyLocation();
-
-        // 🟢 START GAME 🟢
+        // Pick location based on the day
+        const dayIndex = Math.floor(Date.now() / 86400000);
+        const todayTarget = dailyLocations[dayIndex % dailyLocations.length];
+        
         let playerGuessLat = null;
         let playerGuessLon = null;
         let map, playerMarker, targetMarker, flightPath;
 
+        // 🟢 START GAME 🟢
         document.getElementById('start-btn').addEventListener('click', () => {
             document.getElementById('menu-screen').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('menu-screen').style.display = 'none';
                 document.getElementById('game-screen').style.display = 'block';
                 
-                // Loads whatever location was chosen (Mapillary or Google)
-                const iframe = document.getElementById('streetview-iframe');
-                iframe.src = todayTarget.url;
+                // 1. Initialize Pannellum 360 Viewer!
+                pannellum.viewer('panorama', {
+                    "type": "equirectangular",
+                    "panorama": todayTarget.imgUrl,
+                    "autoLoad": true,
+                    "showZoomCtrl": false,
+                    "mouseZoom": false
+                });
 
+                // 2. Initialize Leaflet Map
                 map = L.map('map', { zoomControl: false }).setView([20, 0], 1);
                 L.control.zoom({ position: 'topleft' }).addTo(map);
                 L.tileLayer('/osm/{z}/{x}/{y}.png').addTo(map);
@@ -169,7 +138,7 @@
             }, 500);
         });
 
-        // 🟢 LOCK IN GUESS 🟢
+        // 🟢 LOCK IN GUESS & CINEMATIC ENDING 🟢
         document.getElementById('guess-btn').addEventListener('click', () => {
             if (!playerGuessLat) return alert("Drop a pin on the map first!");
             
@@ -183,7 +152,7 @@
             if (distance < 50) points = 5000; 
 
             document.getElementById('guess-btn-box').style.display = 'none'; 
-            document.getElementById('streetview-iframe').style.opacity = '0'; 
+            document.getElementById('panorama').style.opacity = '0'; 
             
             const mapCont = document.getElementById('map-container');
             mapCont.classList.add('fullscreen-map');
